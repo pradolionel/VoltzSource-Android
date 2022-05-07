@@ -1,10 +1,12 @@
 package;
 
+import Achievements;
 #if desktop
 import Discord.DiscordClient;
 import sys.thread.Thread;
 #end
 import flixel.FlxG;
+import flixel.math.FlxMath;
 import flixel.FlxSprite;
 import flixel.FlxState;
 import flixel.input.keyboard.FlxKey;
@@ -32,18 +34,18 @@ using StringTools;
 
 class TitleState extends MusicBeatState
 {
-	public static var muteKeys:Array<FlxKey> = [FlxKey.ZERO];
-	public static var volumeDownKeys:Array<FlxKey> = [FlxKey.NUMPADMINUS, FlxKey.MINUS];
-	public static var volumeUpKeys:Array<FlxKey> = [FlxKey.NUMPADPLUS, FlxKey.PLUS];
-
 	static var initialized:Bool = false;
 
-    var blackScreen:FlxSprite;
+	var blackScreen:FlxSprite;
 	var credGroup:FlxGroup;
 	var textGroup:FlxGroup;
 	var logoSpr:FlxSprite;
 	var drops:FlxSprite;
 
+	public static var justLeftTitle:Bool = false;
+	public static var muteKeys:Array<FlxKey> = [FlxKey.ZERO];
+	public static var volumeDownKeys:Array<FlxKey> = [FlxKey.NUMPADMINUS, FlxKey.MINUS];
+	public static var volumeUpKeys:Array<FlxKey> = [FlxKey.NUMPADPLUS, FlxKey.PLUS];
 	var curWacky:Array<String> = [];
 
 	var wackyImage:FlxSprite;
@@ -54,19 +56,10 @@ class TitleState extends MusicBeatState
 	var triggeredFlash:Bool = false;
 	var triggeringFlash:Bool = false;
 	var theThing:FlxSprite;
-	
-	var easterEggEnabled:Bool = true; //Disable this to hide the easter egg
-	var easterEggKeyCombination:Array<FlxKey> = [FlxKey.B, FlxKey.B]; //bb stands for bbpanzu cuz he wanted this lmao
-	var lastKeysPressed:Array<FlxKey> = [];
-
-	var mustUpdate:Bool = false;
-	public static var updateVersion:String = '';
 
 	override public function create():Void
 	{
-		#if android
-		FlxG.android.preventDefaultKeys = [BACK];
-		#end
+		Paths.clearUnusedMemory();
 
 		#if (polymod && !html5)
 		if (sys.FileSystem.exists('mods/')) {
@@ -81,38 +74,18 @@ class TitleState extends MusicBeatState
 				polymod.Polymod.init({modRoot: "mods", dirs: folders});
 			}
 		}
+		//Gonna finish this later, probably
 		#end
-		
-		#if CHECK_FOR_UPDATES
-		if(!closedState) {
-			trace('checking for update');
-			var http = new haxe.Http("https://raw.githubusercontent.com/ShadowMario/FNF-PsychEngine/main/gitVersion.txt");
-			
-			http.onData = function (data:String)
-			{
-				updateVersion = data.split('\n')[0].trim();
-				var curVersion:String = MainMenuState.psychEngineVersion.trim();
-				trace('version online: ' + updateVersion + ', your version: ' + curVersion);
-				if(updateVersion != curVersion) {
-					trace('versions arent matching!');
-					mustUpdate = true;
-				}
-			}
-			
-			http.onError = function (error) {
-				trace('error: $error');
-			}
-			
-			http.request();
-		}
-		#end
-
 		FlxG.game.focusLostFramerate = 60;
+		FlxG.sound.muteKeys = [FlxKey.ZERO];
+		FlxTransitionableState.skipNextTransIn = true;
+		FlxTransitionableState.skipNextTransOut = true;
+
 		FlxG.sound.muteKeys = muteKeys;
 		FlxG.sound.volumeDownKeys = volumeDownKeys;
 		FlxG.sound.volumeUpKeys = volumeUpKeys;
-
-		PlayerSettings.init();
+		
+		// PlayerSettings.init();
 
 		curWacky = FlxG.random.getObject(getIntroTextShit());
 
@@ -121,16 +94,6 @@ class TitleState extends MusicBeatState
 		swagShader = new ColorSwap();
 		super.create();
 
-		FlxG.save.bind('funkin', 'ninjamuffin99');
-		ClientPrefs.loadPrefs();
-
-		Highscore.load();
-
-		if (FlxG.save.data.weekCompleted != null)
-		{
-			StoryMenuState.weekCompleted = FlxG.save.data.weekCompleted;
-		}
-
 		FlxG.mouse.visible = false;
 		#if FREEPLAY
 		MusicBeatState.switchState(new FreeplayState());
@@ -138,8 +101,7 @@ class TitleState extends MusicBeatState
 		MusicBeatState.switchState(new ChartingState());
 		#else
 		if(FlxG.save.data.flashing == null && !FlashingState.leftState) {
-			FlxTransitionableState.skipNextTransIn = true;
-			FlxTransitionableState.skipNextTransOut = true;
+			
 			MusicBeatState.switchState(new FlashingState());
 		} else {
 			#if desktop
@@ -172,18 +134,27 @@ class TitleState extends MusicBeatState
 	{
 		if (!initialized)
 		{
-			/*var diamond:FlxGraphic = FlxGraphic.fromClass(GraphicTransTileDiamond);
-			diamond.persist = true;
-			diamond.destroyOnNoUse = false;
-
-			FlxTransitionableState.defaultTransIn = new TransitionData(FADE, FlxColor.BLACK, 1, new FlxPoint(0, -1), {asset: diamond, width: 32, height: 32},
-				new FlxRect(-300, -300, FlxG.width * 1.8, FlxG.height * 1.8));
-			FlxTransitionableState.defaultTransOut = new TransitionData(FADE, FlxColor.BLACK, 0.7, new FlxPoint(0, 1),
-				{asset: diamond, width: 32, height: 32}, new FlxRect(-300, -300, FlxG.width * 1.8, FlxG.height * 1.8));
-				
-			transIn = FlxTransitionableState.defaultTransIn;
-			transOut = FlxTransitionableState.defaultTransOut;*/
-
+			#if ACHIEVEMENTS_ALLOWED
+			Achievements.loadAchievements();
+			if (!Achievements.isAchievementUnlocked('all_voltz_clear'))
+			{
+				got = 0;
+				for (i in 0...27) {
+					if (Achievements.isAchievementUnlocked(Achievements.achievementsStuff[i][2])) { 
+						trace('$i: ' + Achievements.achievementsStuff[i][2] + ' - yes');
+						got++;
+					}
+					else if (i == 17) {
+						trace('$i: ' + 'all_voltz_clear - skip');
+					}
+					else {
+						trace('$i: ' + Achievements.achievementsStuff[i][2] + ' - no!');
+					}	
+				}
+				britChance = 10 + (got*got)/30;
+				brickChance = 20 + (got*got)/51;
+			}
+			#end
 			// HAD TO MODIFY SOME BACKEND SHIT
 			// IF THIS PR IS HERE IF ITS ACCEPTED UR GOOD TO GO
 			// https://github.com/HaxeFlixel/flixel-addons/pull/348
@@ -192,15 +163,29 @@ class TitleState extends MusicBeatState
 			// music.loadStream(Paths.music('freakyMenu'));
 			// FlxG.sound.list.add(music);
 			// music.play();
-
 			if(FlxG.sound.music == null) {
-				FlxG.sound.playMusic(Paths.music('freakyMenu'), 0);
-
-				FlxG.sound.music.fadeIn(4, 0, 0.7);
+				trace('im gonna roll for british');
+				if (FlxG.random.bool(britChance))	// 1/10 by default
+					{
+						FlxG.sound.playMusic(Paths.music('britannia'), 0.95);
+						Conductor.changeBPM(88);
+						basicAwardGrant('brit_startup');
+						trace('im gonna roll for bricks');
+						if (FlxG.random.bool(brickChance)) // 1/5 by default, 1/50 total chance
+							{
+								Main.dothebrit = true;
+								basicAwardGrant('brit_startup_minecrap');
+							}
+					}
+					
+				else
+					{
+						FlxG.sound.playMusic(Paths.music('freakyMenu'), 0.7);
+						Conductor.changeBPM(92);
+					}
+				//FlxG.sound.music.fadeIn(4, 0, 0.7);
 			}
 		}
-
-		Conductor.changeBPM(102);
 		persistentUpdate = true;
 
 		var bg:FlxSprite = new FlxSprite().makeGraphic(FlxG.width, FlxG.height, FlxColor.BLACK);
@@ -247,7 +232,7 @@ class TitleState extends MusicBeatState
 		add(gfDanceTrans);
 		gfDanceTrans.shader = swagShader.shader;
 		//gfDance.animation.play('idle');
-		
+
 		add(logoBl);
 		logoBlhit.alpha = 0;
 		add(logoBlhit);
@@ -329,7 +314,7 @@ class TitleState extends MusicBeatState
 	{
 		if (FlxG.sound.music != null)
 			Conductor.songPosition = FlxG.sound.music.time;
-			// FlxG.watch.addQuick('amp', FlxG.sound.music.amplitude);
+		// FlxG.watch.addQuick('amp', FlxG.sound.music.amplitude);
 		
 		if (FlxG.keys.justPressed.F)
 		{
