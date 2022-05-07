@@ -173,8 +173,8 @@ class TitleState extends MusicBeatState
 						trace('im gonna roll for bricks');
 						if (FlxG.random.bool(brickChance)) // 1/5 by default, 1/50 total chance
 							{
-								Main.dothebrit = true;
-								basicAwardGrant('brit_startup_minecrap');
+							   Main.dothebrit = true;
+						basicAwardGrant('brit_startup_minecrap');
 							}
 					}
 					
